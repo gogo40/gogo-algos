@@ -146,7 +146,6 @@ int64_t mincut(const Graph& nodes,
                     auto  v = parent[std::get<0>(conn)];
                     int64_t w = std::get<1>(conn);
                     if (v != parent[node.head]) {
-                        //++conn_active;
                         conn_active += w;
                     }
                 }
@@ -175,7 +174,6 @@ int64_t mincut(const Graph& nodes, int64_t ntries, int64_t n_threads) {
         int64_t s  = U(gen);
         int64_t t = U(gen);
         mm = std::min(graph::mincut(nodes, s, t, 10, gen(), n_threads), mm);
-        std::cerr<< s << " --> "<< t <<  "  | min_cut: " << mm << "\n";
     } 
     return mm;
 }
@@ -212,6 +210,6 @@ int main() {
     int ntries = N - 1;
     int n_threads = 8;
    
-    std::cout << "min_cut:" << graph::mincut(nodes, ntries,  n_threads) << "\n";
+    std::cout << "min_cut: " << graph::mincut(nodes, ntries,  n_threads) << "\n";
     return 0;
 }
