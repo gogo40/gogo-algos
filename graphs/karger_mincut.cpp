@@ -158,14 +158,12 @@ int64_t mincut(const Graph& nodes,
                int n_threads) {
     int64_t best = 1<<20;
     std::mutex m;
-    std::mt19937_64 gen(seed);
 #pragma omp parallel for num_threads(n_threads)
     for  (int64_t i =0; i < n_iterations; ++i) {
-        int64_t s = 0;
-        {
-            std::lock_guard<std::mutex> _(m);
-            s = gen() + 2 * i + 1;
-        }
+        std::mt19937_64 gen(seed + 2 * i + 1);
+
+        int64_t s =  gen() + 2 * i + 1;
+        
         std::vector<int64_t> parent(nodes.size());
         auto g = contract(parent, g1, g2, nodes, s);
         int64_t r = 0;
