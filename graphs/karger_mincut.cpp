@@ -35,7 +35,12 @@ namespace graph {
 struct Node {
     int64_t head = 0;
     std::unordered_map<int64_t, int64_t> conns;
-    bool is_active = true;
+    bool is_active = false;
+    
+    Node(const Node& other) 
+    : head(other.head), conns(other.conns), is_active(other.is_active) {}
+    Node(int64_t v = 0)  
+    : head(v), is_active(true) {}
     
     void merge(std::vector<int64_t>& parent, 
                std::vector<Node>& g, const Node& other) const {
@@ -70,10 +75,33 @@ struct Node {
             }
         }
         g[head] = result;
+        parent[s] = s;
+        g[t].is_active = false;
     }
 };
 
-using Graph = std::vector<Node>;
+class Graph : public std::vector<Node> {
+public:
+    Graph() {}
+    Graph(int64_t N) : std::vector<Node>(N) {}
+    Graph(const std::vector<Node>& n) : std::vector<Node>(n) {}
+    
+    void add_connection(int64_t u, int64_t v, int64_t w = 1) {
+        (*this)[u].conns[v] += w;
+        ++n_edges_;
+    }
+    
+    int64_t n_vertices() {
+        return this->size();
+    }
+    
+    int64_t n_edges() {
+        return n_edges_;
+    }
+    
+private:
+    int64_t n_edges_ = 0;
+};
 
 Graph contract(std::vector<int64_t>& parent,
                            int64_t g1, int64_t g2,
@@ -101,24 +129,26 @@ Graph contract(std::vector<int64_t>& parent,
         if (g[s].conns.size() < 1) {
             continue;
         }
+        
         std::uniform_int_distribution<int64_t> U2(0, g[s].conns.size() -1);
         int64_t t = U2(gen);
         auto it_t = g[s].conns.begin();
         std::advance(it_t, t);
         t = parent[std::get<0>(*it_t)];
+        
         if ((s==g1 && t==g2 ) ||
              (s==g2 && t==g1)) {
             continue;
         }
         g[s].merge(parent, g, g[t]);
-        parent[s] = s;
         
-        g[t].is_active = false;
         active_set.erase(t);
     }
+    
     for (auto& node: g) {
         node.head = parent[node.head];
     }
+    
     return g;
 }
 
@@ -191,18 +221,15 @@ int main() {
     
     graph::Graph nodes(N+1);
     nodes[0].is_active = false;
-    int64_t M = 0;
     for (int64_t i = 0; i < N; ++i) {
         std::string line;
         std::getline(std::cin, line);
         std::istringstream in(line);
-        int64_t v, u;
-        in>>v;
-        nodes[v].head = v;
-        nodes[v].is_active = true;
-        while (in>>u) {
-            ++M;
-            ++nodes[v].conns[u];
+        int64_t u, v;
+        in>>u;
+        nodes[u] = graph::Node(u);
+        while (in>>v) {
+            nodes.add_connection(u, v, 1);
         }        
     }
     
