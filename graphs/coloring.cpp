@@ -17,16 +17,26 @@ using namespace std;
 
 
 struct State {
-    State(const std::map<int, std::set<int>>& blocked_nodes = std::map<int, std::set<int>>(),
-    const std::vector<int>& test_colors = std::vector<int>(),
-    bool is_ok = true) : blocked_nodes(blocked_nodes), test_colors(test_colors), is_ok(is_ok) {}
-    State(const State& other) : blocked_nodes(other.blocked_nodes), test_colors(other.test_colors), is_ok(other.is_ok) {}
+    State(
+    const std::map<int, std::set<int>>& allowed_collors = std::map<int, std::set<int>>(),
     
-    std::map<int, std::set<int>> blocked_nodes;
+    const std::vector<int>& test_colors = std::vector<int>(),
+    bool is_ok = true) : 
+    allowed_collors(allowed_collors), 
+    test_colors(test_colors), 
+    is_ok(is_ok) {}
+    
+    State(const State& other) : 
+    allowed_collors(other.allowed_collors),
+    test_colors(other.test_colors), 
+    is_ok(other.is_ok) {}
+    
+    std::map<int, std::set<int>> allowed_collors;
     std::vector<int> test_colors;
     bool is_ok = true;
   
-    void copy(const std::map<int, std::set<int>>& blocked_nodes = std::map<int, std::set<int>>(),
+    void copy(
+    const std::map<int, std::set<int>>& allowed_collors = std::map<int, std::set<int>>(),
     const std::vector<int>& test_colors = std::vector<int>()) {
     
         this->test_colors.reserve(test_colors.size());
@@ -34,13 +44,12 @@ struct State {
             this->test_colors.push_back(v);
         }
         
-        for (auto v: blocked_nodes) {
-            auto& o = this->blocked_nodes[v.first];
-            //o.reserve(v.second.size());
+        for (auto v: allowed_collors) {
+            auto& o = this->allowed_collors[v.first];
             for (auto p: v.second) {
                 o.insert(p);
             }
-        }
+        }        
     }  
 };
         
@@ -316,7 +325,7 @@ int main(int argc, char** argv)
         }
     }
     
-    int n_iterations = 5400;
+    int n_iterations = 1400;
     int n_threads = 8;
     std::mutex m;
     std::vector<std::default_random_engine> generators(n_threads);
@@ -330,13 +339,13 @@ int main(int argc, char** argv)
 
         {
             std::lock_guard<std::mutex> _(m);
-            std::uniform_int_distribution<int> dec(color-n_threads,color-1);
+            std::uniform_int_distribution<int> dec(color-4,color-1);
             test_color = (tid < 0.5*n_threads)? (color - 1) : (dec(generator));
         }
         
         bool ok = true;
         std::priority_queue<std::tuple<int, int, int, int, int>> Q;
-        int last_state = 1, max_n_states = 600;
+        int last_state = 1, max_n_states = 1200;
         std::map<int, std::shared_ptr<State>> states;
         
         
@@ -345,13 +354,20 @@ int main(int argc, char** argv)
             int cid = cs(generator);
             int current_c = 0;
             std::vector<int> test_colors(G.n_nodes(), -1);
-            std::map<int, std::set<int>> blocked_nodes;        
+            std::map<int, std::set<int>> allowed_collors;        
             std::set<int> nei;
             int n_colors = 0;
+            
+            for (auto u: nodes) {
+                for (int c = 0; c < test_color; ++c) {
+                    allowed_collors[u].insert(c);
+                }
+            }
+            
             for (auto u: clique[max_clique - 2][cid]) {
                 test_colors[u] = current_c;
                 for (auto v: G.conns(u)) {
-                    blocked_nodes[current_c].insert(v);
+                    allowed_collors[v].erase(current_c);
                     nei.insert(v);
                 }
                 ++current_c;
@@ -367,13 +383,7 @@ int main(int argc, char** argv)
                 if (test_colors[u] > -1) {
                     continue;
                 }
-                int n_opts = 0, last_opt=-1;
-                for (int c = 0; c < test_color; ++c) {
-                    if (blocked_nodes[c].find(u) == blocked_nodes[c].end()) {
-                        ++n_opts;
-                        last_opt = c;
-                    }
-                }
+                int n_opts = allowed_collors[u].size();
                 if (n_opts == 0) {
                     ok = false;
                     break;
@@ -381,7 +391,7 @@ int main(int argc, char** argv)
                 Q.push(std::make_tuple(-n_opts,   density[u], n_colors,  0, -u));            
             }
             states[0] = std::make_shared< State>(
-                blocked_nodes,
+                allowed_collors,
                 test_colors,
                 ok
             );
@@ -390,7 +400,7 @@ int main(int argc, char** argv)
         
         int sol_state = 0;
         bool is_solved = false;
-        int max_iter = G.n_nodes() * 1000;
+        int max_iter = G.n_nodes() * 10000;
         
         while (!Q.empty() && !is_solved && ok && max_iter > 0) {
             int is = -std::get<3>(Q.top());
@@ -402,7 +412,7 @@ int main(int argc, char** argv)
                 continue;
             }
             auto& test_colors = states[is]->test_colors;
-            auto& blocked_nodes = states[is]->blocked_nodes;
+            auto& allowed_collors = states[is]->allowed_collors;
             
             is_solved = true;
             int n_colors = 0;
@@ -442,14 +452,9 @@ int main(int argc, char** argv)
                 continue;
             }
             
-            std::vector<int> cands;
-            int n_opts = 0;
-            for (int c = 0; c < test_color; ++c) {
-                if (blocked_nodes[c].find(u) == blocked_nodes[c].end()) {
-                    ++n_opts;
-                    cands.push_back(c);
-                }
-            }
+            int n_opts = allowed_collors[u].size();
+            auto& cands = allowed_collors[u];
+            
             if (cands.size() < 1 && test_colors[u] < 0) {
                 states[is]->is_ok = false;
                 //states.erase(is);
@@ -459,26 +464,44 @@ int main(int argc, char** argv)
             
             std::uniform_int_distribution<int> U(0, cands.size() -1);
             int i = U(generator);
-            int selected_color = cands[i];
+            auto it = cands.begin();
+            std::advance(it, i);
+            int selected_color = *it;
             test_colors[u] = selected_color;
             for (auto v: G.conns(u)) {
-                blocked_nodes[selected_color].insert(v);
+                allowed_collors[v].erase(selected_color);
             }
             
+            //if (0)
+            for (int u = 0; u < G.n_nodes(); ++u) {
+               if (test_colors[u] > -1) {
+                    continue;
+               }
+               if (allowed_collors[u].size() > 1) {
+                    continue;
+               }
+               if (allowed_collors[u].size() == 1) {
+                   auto c =  *(allowed_collors[u].begin());
+                   test_colors[u] = c;
+                   ++n_colors;
+                   for (auto v: G.conns(u)) {
+                        allowed_collors[v].erase(c);
+                   }
+               } else {
+                    states[is]->is_ok = false;
+                    //states.erase(is);
+                    break;
+               }
+            }
+            
+            
+            if (states[is]->is_ok)
             for (auto v: G.conns(u)) {
                 if (test_colors[v] > -1) {
                     continue;
                 }
-                n_opts = 0;
-                int last_opt = -1;
-                std::vector<int> opts;
-                for (int c = 0; c < test_color; ++c) {
-                    if (blocked_nodes[c].find(v) == blocked_nodes[c].end()) {
-                        ++n_opts;
-                        opts.push_back(c);
-                        last_opt = c;
-                    }
-                }
+                auto& opts = allowed_collors[v];
+                int n_opts = opts.size();
                 if (n_opts == 0) {
                     states[is]->is_ok = false;
                     //states.erase(is);
@@ -491,20 +514,15 @@ int main(int argc, char** argv)
                     int js = last_state;
                     for (auto c: opts) {
                         auto s = std::make_shared<State>();
-                        s->copy(blocked_nodes, test_colors);
+                        s->copy(allowed_collors, test_colors);
                         s->test_colors[v] = c;
                         s->is_ok = true;                          
                         for (auto p: G.conns(v)) {
                             if (s->test_colors[p] > -1) {
                                 continue;
                             }
-                            s->blocked_nodes[c].insert(p);
-                            n_opts = 0;
-                            for (int c2=0; c2 < test_color; ++c2) {
-                                if (s->blocked_nodes[c2].find(p) == s->blocked_nodes[c2].end()) {
-                                    ++n_opts;
-                                }
-                            }
+                            s->allowed_collors[p].erase(c);
+                            n_opts = s->allowed_collors.size();
                             if (n_opts > 0) {
                                 Q.push(std::make_tuple(-n_opts,   density[p], n_colors + 1,-js, -p));
                                 states[js] = s;
