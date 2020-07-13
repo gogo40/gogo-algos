@@ -273,42 +273,46 @@ int main(int argc, char** argv)
     
     
     std::vector<int> colors(G.n_nodes(), -1);
-    std::map<int, std::set<int>> blocked_nodes;
     
     int64_t color = 0;
-    for (auto u: clique[max_clique - 2][0]) {
-        colors[u] = color;
-        for (auto v: G.conns(u)) {
-            blocked_nodes[color].insert(v);
-        }
-        ++color;
-    }
     
-    // create base line using greedy
-    for (int u: nodes) {
-        if (colors[u] > -1) {
-            continue;
-        }
+    {
+        std::map<int, std::set<int>> blocked_nodes;
         
-        bool ok = false;
-        int selected_color = -1;
-        for (int c = 0; c < color; ++c) {
-            if (blocked_nodes[c].find(u) == blocked_nodes[c].end()) {
-                selected_color = c;
-                ok = true;
-                break;
+        for (auto u: clique[max_clique - 2][0]) {
+            colors[u] = color;
+            for (auto v: G.conns(u)) {
+                blocked_nodes[color].insert(v);
             }
-        }
-        
-        if (!ok) {
-            selected_color = color;
             ++color;
         }
         
-        colors[u] = selected_color;
-        
-        for (auto v: G.conns(u)) {
-            blocked_nodes[selected_color].insert(v);
+        // create base line using greedy
+        for (int u: nodes) {
+            if (colors[u] > -1) {
+                continue;
+            }
+            
+            bool ok = false;
+            int selected_color = -1;
+            for (int c = 0; c < color; ++c) {
+                if (blocked_nodes[c].find(u) == blocked_nodes[c].end()) {
+                    selected_color = c;
+                    ok = true;
+                    break;
+                }
+            }
+            
+            if (!ok) {
+                selected_color = color;
+                ++color;
+            }
+            
+            colors[u] = selected_color;
+            
+            for (auto v: G.conns(u)) {
+                blocked_nodes[selected_color].insert(v);
+            }
         }
     }
     
