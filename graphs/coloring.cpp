@@ -316,7 +316,7 @@ int main(int argc, char** argv)
         }
     }
     
-    int n_iterations = 1000;
+    int n_iterations = 700;
     int n_threads = 8;
     std::mutex m;
     std::vector<std::default_random_engine> generators(n_threads);
@@ -330,8 +330,8 @@ int main(int argc, char** argv)
 
         {
             std::lock_guard<std::mutex> _(m);
-            std::uniform_int_distribution<int> dec(max_clique,color-1);
-            test_color = (tid < 3)? (color - 1) : (dec(generator));
+            std::uniform_int_distribution<int> dec(color-n_threads,color-1);
+            test_color = (tid < 0.5*n_threads)? (color - 1) : (dec(generator));
         }
         
         bool ok = true;
@@ -385,10 +385,12 @@ int main(int argc, char** argv)
         
         int sol_state = 0;
         bool is_solved = false;
+        int max_iter = std::min(200000, G.n_nodes() * 1000);
         
-        while (!Q.empty() && !is_solved && ok) {
+        while (!Q.empty() && !is_solved && ok && max_iter > 0) {
             int is = -std::get<3>(Q.top());
-            int u = -std::get<4>(Q.top()); 
+            int u = -std::get<4>(Q.top());
+            --max_iter;
             Q.pop();
             
             if (states.find(is) == states.end()) {
@@ -513,14 +515,14 @@ int main(int argc, char** argv)
             std::cerr << "iteration " << (i+1) << "/" << n_iterations << "\n";
         }
         
-        if (ok) {
+        if (ok && is_solved) {
             std::lock_guard<std::mutex> _(m);
             auto& test_colors = states[sol_state]->test_colors;
             if (test_color < color) {
                 colors = test_colors;
                 color = test_color;
                 std::cerr << "sol state:" << sol_state << "\n";
-                std::cerr << "new # color: " << color << " " << n_iterations << "\n";
+                std::cerr << "new # color: " << color << " " << (i + 1) << "/" << n_iterations << "\n";
                 for (int i = 0; i < colors.size(); ++i) {
                     if (i > 0) {
                         std::cerr << " ";
