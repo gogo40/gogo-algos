@@ -316,7 +316,7 @@ int main(int argc, char** argv)
         }
     }
     
-    int n_iterations = 700;
+    int n_iterations = 5400;
     int n_threads = 8;
     std::mutex m;
     std::vector<std::default_random_engine> generators(n_threads);
@@ -335,20 +335,19 @@ int main(int argc, char** argv)
         }
         
         bool ok = true;
-        int current_c = 0;
         std::priority_queue<std::tuple<int, int, int, int, int>> Q;
-        
-        std::uniform_int_distribution<int> cs(0, clique[max_clique - 2].size() - 1);
-        int cid = cs(generator);
-        
         int last_state = 1, max_n_states = 600;
         std::map<int, std::shared_ptr<State>> states;
         
         
         {
+            std::uniform_int_distribution<int> cs(0, clique[max_clique - 2].size() - 1);
+            int cid = cs(generator);
+            int current_c = 0;
             std::vector<int> test_colors(G.n_nodes(), -1);
             std::map<int, std::set<int>> blocked_nodes;        
             std::set<int> nei;
+            int n_colors = 0;
             for (auto u: clique[max_clique - 2][cid]) {
                 test_colors[u] = current_c;
                 for (auto v: G.conns(u)) {
@@ -356,6 +355,12 @@ int main(int argc, char** argv)
                     nei.insert(v);
                 }
                 ++current_c;
+            }
+            
+            for (auto u: nodes) {
+                if (test_colors[u] > -1) {
+                    ++n_colors;
+                }
             }
                         
             for (auto u: nei) {
@@ -373,7 +378,7 @@ int main(int argc, char** argv)
                     ok = false;
                     break;
                 }
-                Q.push(std::make_tuple(-n_opts, density[u],  az[u],  0, -u));            
+                Q.push(std::make_tuple(-n_opts,   density[u], n_colors,  0, -u));            
             }
             states[0] = std::make_shared< State>(
                 blocked_nodes,
@@ -385,7 +390,7 @@ int main(int argc, char** argv)
         
         int sol_state = 0;
         bool is_solved = false;
-        int max_iter = std::min(200000, G.n_nodes() * 1000);
+        int max_iter = G.n_nodes() * 1000;
         
         while (!Q.empty() && !is_solved && ok && max_iter > 0) {
             int is = -std::get<3>(Q.top());
@@ -400,10 +405,12 @@ int main(int argc, char** argv)
             auto& blocked_nodes = states[is]->blocked_nodes;
             
             is_solved = true;
+            int n_colors = 0;
             for (int u = 0; u < G.n_nodes(); ++u) {
                 if (test_colors[u] < 0) {
                     is_solved = false;
-                    break;
+                } else {
+                    ++n_colors;
                 }
             }
             
@@ -478,7 +485,7 @@ int main(int argc, char** argv)
                     break;
                 }
                 
-                Q.push(std::make_tuple(-n_opts, density[v], az[v], -is, -v));
+                Q.push(std::make_tuple(-n_opts,  density[v],n_colors + 1,   -is, -v));
                     
                 if (n_opts < 3 && states.size() < max_n_states) {
                     int js = last_state;
@@ -499,7 +506,7 @@ int main(int argc, char** argv)
                                 }
                             }
                             if (n_opts > 0) {
-                                Q.push(std::make_tuple(-n_opts, density[p],   az[p], -js, -p));
+                                Q.push(std::make_tuple(-n_opts,   density[p], n_colors + 1,-js, -p));
                                 states[js] = s;
                                 ++js;
                             }                                      
